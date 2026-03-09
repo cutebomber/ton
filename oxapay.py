@@ -1,18 +1,18 @@
 """
-OxaPay crypto payment gateway wrapper — polling mode (no webhook/public URL needed).
+OxaPay API wrapper — v1 endpoint (api.oxapay.com/v1)
 
-Docs: https://docs.oxapay.com/api-reference/payment/generate-invoice
+Response format:
+  - Success: {"status": 200, "data": {...}}
+  - Error:   {"status": 4xx, "message": "..."}
 
-Flow:
-  1. create_invoice() — generate a pay link and get back a track_id
-  2. Scheduler polls get_invoice(track_id) every 10 seconds
-  3. When status == "paid", deposit is confirmed and user/advertiser is credited
+Invoice response fields (camelCase):
+  payLink, trackId, expiredAt, ...
+
+Invoice status poll fields:
+  status: "New" | "Waiting" | "Confirming" | "Paid" | "Expired" | "Failed"
 """
 
-import hashlib
-import hmac
 import aiohttp
-
 from config import OXAPAY_MERCHANT_KEY
 
 API_BASE = "https://api.oxapay.com/v1"
@@ -28,39 +28,38 @@ async def create_invoice(
     currency: str,
     order_id: str,
     description: str = "",
-    lifetime: int = 60,   # minutes until invoice expires
+    lifetime: int = 60,
 ) -> dict:
     """
     Create an OxaPay invoice.
-    Returns dict containing at least: pay_link, track_id, status
-    No callback_url needed — we poll for status instead.
+    Returns dict with at least: payLink, trackId
     """
     payload = {
         "amount":            amount,
         "currency":          currency,
         "lifetime":          lifetime,
-        "order_id":          order_id,    # we store telegram_id (or -adv_id) here
+        "order_id":          order_id,
         "description":       description,
-        "fee_paid_by_payer": 1,           # payer covers OxaPay's fee
+        "fee_paid_by_payer": 1,
     }
 
     url = f"{API_BASE}/payment/invoice"
     async with aiohttp.ClientSession() as session:
         async with session.post(url, json=payload, headers=HEADERS) as r:
             data = await r.json()
-            if data.get("result") != 100:
+            status = data.get("status")
+            if status != 200:
                 raise RuntimeError(
-                    f"OxaPay invoice error (result={data.get('result')}): "
-                    f"{data.get('message', data)}"
+                    f"OxaPay error (status={status}): {data.get('message', data)}"
                 )
-            return data   # contains pay_link, track_id, expiredAt, ...
+            # data["data"] contains payLink, trackId, etc.
+            return data.get("data", data)
 
 
 async def get_invoice(track_id: str) -> dict:
     """
-    Fetch the current status of an invoice by track_id.
-    Returns dict with at least: status, amount, currency, pay_amount, pay_currency
-    Possible statuses: waiting | paying | paid | expired | cancelled
+    Fetch current status of an invoice by trackId.
+    Possible statuses: New | Waiting | Confirming | Paid | Expired | Failed
     """
     url = f"{API_BASE}/payment/info"
     async with aiohttp.ClientSession() as session:
@@ -70,9 +69,9 @@ async def get_invoice(track_id: str) -> dict:
             headers=HEADERS,
         ) as r:
             data = await r.json()
-            if data.get("result") != 100:
+            status = data.get("status")
+            if status != 200:
                 raise RuntimeError(
-                    f"OxaPay getInvoice error (result={data.get('result')}): "
-                    f"{data.get('message', data)}"
+                    f"OxaPay getInvoice error (status={status}): {data.get('message', data)}"
                 )
-            return data
+            return data.get("data", data)
