@@ -156,7 +156,7 @@ async def dep_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
     except Exception as e:
         logger.error(f"OxaPay error: {e}")
-        await update.message.reply_text("❌ Failed to create invoice. Try again later.")
+        await update.message.reply_text(f"❌ OxaPay error:\n{e}")
         return ConversationHandler.END
 
     db.create_deposit(uid, currency, amount, invoice_id=str(invoice.get("track_id")))
