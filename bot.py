@@ -57,20 +57,20 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def menu_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+async def menu_balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    action = query.data
+    balance = db.get_user_balance(query.from_user.id)
+    rate    = await get_ton_usd_rate()
+    await query.edit_message_text(
+        f"💰 Your Balance\n\n${balance:.4f} USD\nTON/USD rate: ${rate:.4f}",
+    )
 
-    if action == "menu_deposit":
-        await query.message.reply_text("Use /deposit to top up your balance.")
-    elif action == "menu_balance":
-        balance = db.get_user_balance(query.from_user.id)
-        await query.message.reply_markdown(f"💰 Your balance: *${balance:.4f} USD*")
-    elif action == "menu_promo":
-        await query.message.reply_text("Use /promo to submit a new promo order.")
-    elif action == "menu_orders":
-        await _show_orders(query.message, query.from_user.id)
+
+async def menu_orders_btn(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await _show_orders(query.message, query.from_user.id)
 
 
 # ── /balance ──────────────────────────────────────────────────────────────────
@@ -104,11 +104,18 @@ async def help_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ── /deposit ──────────────────────────────────────────────────────────────────
 
 async def deposit_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    # Works from both /deposit command and inline button
+    if update.callback_query:
+        await update.callback_query.answer()
+        send = update.callback_query.message.reply_text
+    else:
+        send = update.message.reply_text
+
     user = update.effective_user
     db.upsert_user(user.id, user.username or user.first_name)
 
     buttons = [[InlineKeyboardButton(c, callback_data=f"dep_{c}")] for c in OXAPAY_CURRENCIES]
-    await update.message.reply_text(
+    await send(
         "Select the currency you want to deposit:",
         reply_markup=InlineKeyboardMarkup(buttons),
     )
@@ -171,8 +178,15 @@ async def dep_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ── /promo ────────────────────────────────────────────────────────────────────
 
 async def promo_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    # Works from both /promo command and inline button
+    if update.callback_query:
+        await update.callback_query.answer()
+        send = update.callback_query.message.reply_markdown
+    else:
+        send = update.message.reply_markdown
+
     db.upsert_user(update.effective_user.id, update.effective_user.username or update.effective_user.first_name)
-    await update.message.reply_markdown(
+    await send(
         f"📢 *New Promo Order*\n\n"
         f"Cost: *${PRICE_PER_ADDRESS_USD} per address*\n"
         f"Each address receives: *{TON_SEND_AMOUNT} TON* with your memo\n\n"
@@ -355,7 +369,10 @@ def build_app():
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
     deposit_conv = ConversationHandler(
-        entry_points=[CommandHandler("deposit", deposit_start)],
+        entry_points=[
+            CommandHandler("deposit", deposit_start),
+            CallbackQueryHandler(deposit_start, pattern="^menu_deposit$"),
+        ],
         states={
             DEP_CURRENCY: [CallbackQueryHandler(dep_currency, pattern="^dep_")],
             DEP_AMOUNT:   [MessageHandler(filters.TEXT & ~filters.COMMAND, dep_amount)],
@@ -380,7 +397,8 @@ def build_app():
     app.add_handler(CommandHandler("help",    help_cmd))
     app.add_handler(CommandHandler("balance", balance))
     app.add_handler(CommandHandler("orders",  orders_cmd))
-    app.add_handler(CallbackQueryHandler(menu_handler, pattern="^menu_"))
+    app.add_handler(CallbackQueryHandler(menu_balance,    pattern="^menu_balance$"))
+    app.add_handler(CallbackQueryHandler(menu_orders_btn, pattern="^menu_orders$"))
     app.add_handler(deposit_conv)
     app.add_handler(promo_conv)
 
