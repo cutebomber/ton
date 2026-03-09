@@ -44,7 +44,6 @@ MAIN_MENU = ReplyKeyboardMarkup(
         [KeyboardButton("📋 My Orders"), KeyboardButton("❓ Help")],
     ],
     resize_keyboard=True,
-    persistent=True,
     input_field_placeholder="Choose an option...",
 )
 
