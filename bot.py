@@ -320,7 +320,17 @@ async def orders_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data.clear()
-    await update.message.reply_text("Cancelled.")
+    text = update.message.text
+    # If a menu button was pressed mid-conversation, route it properly
+    if text == "💳 Deposit":
+        return await deposit_start(update, ctx)
+    elif text == "📢 New Promo":
+        return await promo_start(update, ctx)
+    elif text == "📋 My Orders":
+        return await orders_cmd(update, ctx)
+    elif text == "❓ Help":
+        return await help_cmd(update, ctx)
+    await update.message.reply_text("Cancelled.", reply_markup=MAIN_MENU)
     return ConversationHandler.END
 
 
@@ -366,9 +376,9 @@ def build_app():
         ],
         states={
             DEP_CURRENCY: [CallbackQueryHandler(dep_currency, pattern="^dep_")],
-            DEP_AMOUNT:   [MessageHandler(filters.TEXT & ~filters.COMMAND, dep_amount)],
+            DEP_AMOUNT:   [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex("^(💳 Deposit|📢 New Promo|📋 My Orders|❓ Help)$"), dep_amount)],
         },
-        fallbacks=[CommandHandler("cancel", cancel)],
+        fallbacks=[CommandHandler("cancel", cancel), MessageHandler(filters.Regex("^(💳 Deposit|📢 New Promo|📋 My Orders|❓ Help)$"), cancel)],
     )
 
     promo_conv = ConversationHandler(
@@ -377,11 +387,11 @@ def build_app():
             MessageHandler(filters.Regex("^📢 New Promo$"), promo_start),
         ],
         states={
-            PROMO_MEMO:      [MessageHandler(filters.TEXT & ~filters.COMMAND, promo_memo)],
-            PROMO_ADDRESSES: [MessageHandler(filters.TEXT & ~filters.COMMAND, promo_addresses)],
+            PROMO_MEMO:      [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex("^(💳 Deposit|📢 New Promo|📋 My Orders|❓ Help)$"), promo_memo)],
+            PROMO_ADDRESSES: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex("^(💳 Deposit|📢 New Promo|📋 My Orders|❓ Help)$"), promo_addresses)],
             PROMO_CONFIRM:   [CallbackQueryHandler(promo_confirm, pattern="^promo_")],
         },
-        fallbacks=[CommandHandler("cancel", cancel)],
+        fallbacks=[CommandHandler("cancel", cancel), MessageHandler(filters.Regex("^(💳 Deposit|📢 New Promo|📋 My Orders|❓ Help)$"), cancel)],
     )
 
     app.add_handler(CommandHandler("start",   start))
