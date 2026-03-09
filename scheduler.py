@@ -43,33 +43,33 @@ async def poll_payments_loop(bot=None):
                     continue
                 try:
                     data   = await get_invoice(str(dep["invoice_id"]))
-                    logger.info(f"Invoice {dep['invoice_id']} poll response: {data}")
                     status = (data.get("status") or "").lower()
+                    logger.info(f"Invoice {dep['invoice_id']} status: {status}")
 
-                    if status and status.lower() == "paid":
-                        # Convert deposited amount to USD and credit balance
-                        amount_crypto = dep["amount_crypto"]
-                        currency      = dep["currency"]
-
-                        # OxaPay returns pay_amount in the invoice for actual crypto received
-                        pay_amount = float(data.get("pay_amount") or data.get("payAmount") or amount_crypto)
-                        amount_usd = await ton_to_usd(pay_amount) if currency == "TON" else pay_amount
+                    if status == "paid":
+                        amount_crypto = float(data.get("payAmount") or dep["amount_crypto"])
+                        currency      = data.get("payCurrency") or dep["currency"]
+                        # Convert to USD: if TON use live rate, else treat as USD stablecoin
+                        if dep["currency"] in ("USDT", "USDC"):
+                            amount_usd = float(data.get("amount") or dep["amount_crypto"])
+                        else:
+                            amount_usd = await ton_to_usd(amount_crypto)
 
                         db.confirm_deposit_by_invoice(dep["invoice_id"], amount_usd)
                         db.update_user_balance(dep["telegram_id"], amount_usd)
 
                         logger.info(
                             f"✅ Deposit confirmed — user {dep['telegram_id']} "
-                            f"+${amount_usd:.4f} USD ({pay_amount} {currency})"
+                            f"+${amount_usd:.4f} USD ({amount_crypto} {currency})"
                         )
 
                         if bot:
                             await notify_deposit_confirmed(
                                 bot, dep["telegram_id"],
-                                pay_amount, currency, amount_usd
+                                amount_crypto, currency, amount_usd
                             )
 
-                    elif status and status.lower() in ("expired", "failed"):
+                    elif status in ("expired", "failed"):
                         db.reject_deposit(dep["id"])
                         logger.info(f"🗑️  Invoice {dep['invoice_id']} {status}")
 
