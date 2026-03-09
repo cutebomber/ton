@@ -1,15 +1,13 @@
 """
-OxaPay API wrapper — v1 endpoint (api.oxapay.com/v1)
+OxaPay API wrapper — v1 endpoints (api.oxapay.com/v1)
 
-Response format:
-  - Success: {"status": 200, "data": {...}}
-  - Error:   {"status": 4xx, "message": "..."}
+Create invoice:
+  POST /v1/payment/invoice
+  Response: {"status": 200, "data": {"track_id": "...", "payment_url": "...", ...}}
 
-Invoice response fields (camelCase):
-  payLink, trackId, expiredAt, ...
-
-Invoice status poll fields:
-  status: "New" | "Waiting" | "Confirming" | "Paid" | "Expired" | "Failed"
+Check invoice status:
+  POST /v1/payment/info  with {"track_id": "..."}
+  Response: {"status": 200, "data": {"status": "New|Waiting|Paying|Paid|Expired|Failed", ...}}
 """
 
 import aiohttp
@@ -32,7 +30,7 @@ async def create_invoice(
 ) -> dict:
     """
     Create an OxaPay invoice.
-    Returns dict with at least: payLink, trackId
+    Returns data dict with: track_id, payment_url, expired_at
     """
     payload = {
         "amount":            amount,
@@ -46,20 +44,20 @@ async def create_invoice(
     url = f"{API_BASE}/payment/invoice"
     async with aiohttp.ClientSession() as session:
         async with session.post(url, json=payload, headers=HEADERS) as r:
-            data = await r.json()
-            status = data.get("status")
-            if status != 200:
+            raw = await r.text()
+            data = await r.json(content_type=None)
+            if data.get("status") != 200:
                 raise RuntimeError(
-                    f"OxaPay error (status={status}): {data.get('message', data)}"
+                    f"status={data.get('status')} message={data.get('message', raw)}"
                 )
-            # data["data"] contains payLink, trackId, etc.
-            return data.get("data", data)
+            return data["data"]   # {"track_id": "...", "payment_url": "...", "expired_at": ...}
 
 
 async def get_invoice(track_id: str) -> dict:
     """
-    Fetch current status of an invoice by trackId.
-    Possible statuses: New | Waiting | Confirming | Paid | Expired | Failed
+    Poll status of an invoice.
+    Returns data dict with: status, amount, currency, ...
+    Statuses: New | Waiting | Paying | Confirming | Paid | Expired | Failed
     """
     url = f"{API_BASE}/payment/info"
     async with aiohttp.ClientSession() as session:
@@ -68,10 +66,9 @@ async def get_invoice(track_id: str) -> dict:
             json={"track_id": track_id},
             headers=HEADERS,
         ) as r:
-            data = await r.json()
-            status = data.get("status")
-            if status != 200:
+            data = await r.json(content_type=None)
+            if data.get("status") != 200:
                 raise RuntimeError(
-                    f"OxaPay getInvoice error (status={status}): {data.get('message', data)}"
+                    f"status={data.get('status')} message={data.get('message', data)}"
                 )
-            return data.get("data", data)
+            return data["data"]
