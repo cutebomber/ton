@@ -17,7 +17,7 @@ from oxapay import get_invoice
 from prices import ton_to_usd, get_ton_usd_rate
 from config import (
     ADMIN_TON_WALLET, TON_SEND_AMOUNT,
-    LOG_CHANNEL_ID, ADMIN_TELEGRAM_ID,
+    LOG_CHANNEL_ID, ADMIN_TELEGRAM_ID, PRICE_PER_ADDRESS_USD,
 )
 
 logger = logging.getLogger(__name__)
@@ -152,10 +152,16 @@ async def _process_order(order, bot):
 
     db.set_order_status(order_id, "completed")
 
-    # Fetch all targets (including status) for the log
+    # Fetch all targets for the log
     all_targets = db.get_order_targets_all(order_id)
     sent   = sum(1 for t in all_targets if t["status"] == "sent")
     failed = sum(1 for t in all_targets if t["status"] == "failed")
+
+    # Refund cost for failed targets
+    if failed > 0:
+        refund = round(failed * PRICE_PER_ADDRESS_USD, 4)
+        db.update_user_balance(order["telegram_id"], refund)
+        logger.info(f"💸 Refunded ${refund} for {failed} failed TXs on order #{order_id}")
 
     # Notify user
     if bot:
