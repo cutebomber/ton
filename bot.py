@@ -11,7 +11,7 @@ Commands:
 """
 
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     CallbackQueryHandler, ConversationHandler,
@@ -38,51 +38,57 @@ logger = logging.getLogger(__name__)
 
 # ── /start ────────────────────────────────────────────────────────────────────
 
+MAIN_MENU = ReplyKeyboardMarkup(
+    [
+        [KeyboardButton("💳 Deposit"),   KeyboardButton("📢 New Promo")],
+        [KeyboardButton("📋 My Orders"), KeyboardButton("❓ Help")],
+    ],
+    resize_keyboard=True,
+    persistent=True,
+    input_field_placeholder="Choose an option...",
+)
+
+
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     db.upsert_user(user.id, user.username or user.first_name)
     balance = db.get_user_balance(user.id)
 
-    kb = [
-        [InlineKeyboardButton("💳 Deposit",    callback_data="menu_deposit"),
-         InlineKeyboardButton("💰 Balance",    callback_data="menu_balance")],
-        [InlineKeyboardButton("📢 New Promo",  callback_data="menu_promo"),
-         InlineKeyboardButton("📋 My Orders",  callback_data="menu_orders")],
-    ]
     await update.message.reply_markdown(
         f"👋 Welcome, *{user.first_name}*!\n\n"
         f"💰 Balance: *${balance:.4f} USD*\n\n"
-        f"Use the menu below or type /help.",
-        reply_markup=InlineKeyboardMarkup(kb),
+        f"Use the menu buttons below.",
+        reply_markup=MAIN_MENU,
     )
 
 
-async def menu_balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    balance = db.get_user_balance(query.from_user.id)
-    rate    = await get_ton_usd_rate()
-    await query.edit_message_text(
-        f"💰 Your Balance\n\n${balance:.4f} USD\nTON/USD rate: ${rate:.4f}",
-    )
 
-
-async def menu_orders_btn(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    await _show_orders(query.message, query.from_user.id)
 
 
 # ── /balance ──────────────────────────────────────────────────────────────────
 
 async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    bal = db.get_user_balance(update.effective_user.id)
+    bal  = db.get_user_balance(update.effective_user.id)
     rate = await get_ton_usd_rate()
     await update.message.reply_markdown(
         f"💰 *Your Balance*\n\n"
         f"${bal:.4f} USD\n"
-        f"_TON/USD rate: ${rate:.4f}_"
+        f"_TON/USD rate: ${rate:.4f}_",
+        reply_markup=MAIN_MENU,
     )
+
+
+async def menu_button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Route persistent menu button presses to the correct handler."""
+    text = update.message.text
+    if text == "💳 Deposit":
+        return await deposit_start(update, ctx)
+    elif text == "📢 New Promo":
+        return await promo_start(update, ctx)
+    elif text == "📋 My Orders":
+        return await orders_cmd(update, ctx)
+    elif text == "❓ Help":
+        return await help_cmd(update, ctx)
 
 
 # ── /help ─────────────────────────────────────────────────────────────────────
@@ -104,18 +110,11 @@ async def help_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ── /deposit ──────────────────────────────────────────────────────────────────
 
 async def deposit_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    # Works from both /deposit command and inline button
-    if update.callback_query:
-        await update.callback_query.answer()
-        send = update.callback_query.message.reply_text
-    else:
-        send = update.message.reply_text
-
     user = update.effective_user
     db.upsert_user(user.id, user.username or user.first_name)
 
     buttons = [[InlineKeyboardButton(c, callback_data=f"dep_{c}")] for c in OXAPAY_CURRENCIES]
-    await send(
+    await update.message.reply_text(
         "Select the currency you want to deposit:",
         reply_markup=InlineKeyboardMarkup(buttons),
     )
@@ -178,15 +177,8 @@ async def dep_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ── /promo ────────────────────────────────────────────────────────────────────
 
 async def promo_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    # Works from both /promo command and inline button
-    if update.callback_query:
-        await update.callback_query.answer()
-        send = update.callback_query.message.reply_markdown
-    else:
-        send = update.message.reply_markdown
-
     db.upsert_user(update.effective_user.id, update.effective_user.username or update.effective_user.first_name)
-    await send(
+    await update.message.reply_markdown(
         f"📢 *New Promo Order*\n\n"
         f"Cost: *${PRICE_PER_ADDRESS_USD} per address*\n"
         f"Each address receives: *{TON_SEND_AMOUNT} TON* with your memo\n\n"
@@ -371,7 +363,7 @@ def build_app():
     deposit_conv = ConversationHandler(
         entry_points=[
             CommandHandler("deposit", deposit_start),
-            CallbackQueryHandler(deposit_start, pattern="^menu_deposit$"),
+            MessageHandler(filters.Regex("^💳 Deposit$"), deposit_start),
         ],
         states={
             DEP_CURRENCY: [CallbackQueryHandler(dep_currency, pattern="^dep_")],
@@ -383,7 +375,7 @@ def build_app():
     promo_conv = ConversationHandler(
         entry_points=[
             CommandHandler("promo", promo_start),
-            CallbackQueryHandler(promo_start, pattern="^menu_promo$"),
+            MessageHandler(filters.Regex("^📢 New Promo$"), promo_start),
         ],
         states={
             PROMO_MEMO:      [MessageHandler(filters.TEXT & ~filters.COMMAND, promo_memo)],
@@ -397,10 +389,13 @@ def build_app():
     app.add_handler(CommandHandler("help",    help_cmd))
     app.add_handler(CommandHandler("balance", balance))
     app.add_handler(CommandHandler("orders",  orders_cmd))
-    app.add_handler(CallbackQueryHandler(menu_balance,    pattern="^menu_balance$"))
-    app.add_handler(CallbackQueryHandler(menu_orders_btn, pattern="^menu_orders$"))
     app.add_handler(deposit_conv)
     app.add_handler(promo_conv)
+    # Must be last — catches menu button text that isn't caught by conversations
+    app.add_handler(MessageHandler(
+        filters.TEXT & ~filters.COMMAND & filters.Regex("^(💳 Deposit|📢 New Promo|📋 My Orders|❓ Help)$"),
+        menu_button_handler,
+    ))
 
     return app
 
