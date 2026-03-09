@@ -16,7 +16,7 @@ from ton import send_ton, get_wallet_balance
 from oxapay import get_invoice
 from prices import ton_to_usd, get_ton_usd_rate
 from config import (
-    AD_SEND_INTERVAL, ADMIN_TON_WALLET, TON_SEND_AMOUNT,
+    ADMIN_TON_WALLET, TON_SEND_AMOUNT,
     LOG_CHANNEL_ID, ADMIN_TELEGRAM_ID,
 )
 
