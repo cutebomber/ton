@@ -247,10 +247,30 @@ async def admin_users(session: Optional[str] = Cookie(default=None)):
         <td>@{u['username'] or 'N/A'}</td>
         <td><strong>${u['balance_usd']:.4f}</strong></td>
         <td>{datetime.fromtimestamp(u['registered_at']).strftime('%Y-%m-%d')}</td>
+        <td>
+          <form method="post" action="/admin/users/{u['telegram_id']}/add_balance" style="display:flex;gap:6px;align-items:center">
+            <input name="amount" type="number" step="0.01" min="0.01" placeholder="USD"
+                   style="width:90px;padding:5px 8px;border-radius:6px;border:1px solid #374151;background:#0f1117;color:#e8eaf6;font-size:13px">
+            <button class="btn btn-success btn-sm">+ Add</button>
+          </form>
+        </td>
     </tr>""" for u in users)
 
     body = f"""<div class="card"><h2>Users</h2>
-    <table><tr><th>Telegram ID</th><th>Username</th><th>Balance</th><th>Joined</th></tr>
-    {rows or '<tr><td colspan="4" style="color:#64748b">No users yet.</td></tr>'}
+    <table><tr><th>Telegram ID</th><th>Username</th><th>Balance</th><th>Joined</th><th>Add Balance</th></tr>
+    {rows or '<tr><td colspan="5" style="color:#64748b">No users yet.</td></tr>'}
     </table></div>"""
     return page("Users", body)
+
+
+@app.post("/admin/users/{telegram_id}/add_balance")
+async def admin_add_balance(
+    telegram_id: int,
+    amount: float = Form(...),
+    session: Optional[str] = Cookie(default=None),
+):
+    if not is_admin(session):
+        return RedirectResponse("/admin/login", status_code=303)
+    if amount > 0:
+        db.update_user_balance(telegram_id, amount)
+    return RedirectResponse("/admin/users", status_code=303)
