@@ -43,7 +43,7 @@ async def poll_payments_loop(bot=None):
                     continue
                 try:
                     data   = await get_invoice(str(dep["invoice_id"]))
-                    status = data.get("status", "")
+                    status = (data.get("status") or "").lower()
 
                     if status and status.lower() == "paid":
                         # Convert deposited amount to USD and credit balance
@@ -51,7 +51,7 @@ async def poll_payments_loop(bot=None):
                         currency      = dep["currency"]
 
                         # OxaPay returns pay_amount in the invoice for actual crypto received
-                        pay_amount = float(data.get("payAmount") or data.get("pay_amount") or amount_crypto)
+                        pay_amount = float(data.get("pay_amount") or data.get("payAmount") or amount_crypto)
                         amount_usd = await ton_to_usd(pay_amount) if currency == "TON" else pay_amount
 
                         db.confirm_deposit_by_invoice(dep["invoice_id"], amount_usd)
