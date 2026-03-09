@@ -285,11 +285,12 @@ async def promo_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     ctx.user_data.clear()
 
-    await query.edit_message_markdown(
+    await query.edit_message_text(
         f"✅ *Order #{order_id} submitted!*\n\n"
         f"📍 {len(addresses)} addresses\n"
         f"💵 ${cost} USD charged\n\n"
-        f"Sending starts immediately. Use /orders to track progress."
+        f"Sending starts immediately. Use /orders to track progress.",
+        parse_mode="Markdown",
     )
     return ConversationHandler.END
 
