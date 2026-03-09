@@ -159,9 +159,9 @@ async def dep_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ OxaPay error:\n{e}")
         return ConversationHandler.END
 
-    db.create_deposit(uid, currency, amount, invoice_id=str(invoice.get("track_id")))
+    db.create_deposit(uid, currency, amount, invoice_id=str(invoice.get("trackId")))
 
-    pay_link = invoice["pay_link"]
+    pay_link = invoice["payLink"]
     await update.message.reply_markdown(
         f"✅ *Invoice Created*\n\n"
         f"Amount: *{amount} {currency}*\n"
