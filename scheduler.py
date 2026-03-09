@@ -137,7 +137,9 @@ async def _process_order(order, bot):
     logger.info(f"🚀 Processing order #{order_id} — {len(targets)} addresses")
 
     for target in targets:
+        logger.info(f"📤 Sending {TON_SEND_AMOUNT} TON → {target['address']}")
         result = await send_ton(target["address"], TON_SEND_AMOUNT, memo)
+        logger.info(f"send_ton result: {result}")
 
         if result["success"]:
             db.update_target(target["id"], result["tx_hash"], "sent")
@@ -146,7 +148,7 @@ async def _process_order(order, bot):
             db.update_target(target["id"], None, "failed")
             logger.warning(f"❌ → {target['address'][:12]}...: {result['error']}")
 
-        await asyncio.sleep(1)  # brief pause between sends
+        await asyncio.sleep(2)  # pause between sends
 
     db.set_order_status(order_id, "completed")
 
