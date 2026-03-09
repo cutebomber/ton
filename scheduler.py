@@ -43,6 +43,7 @@ async def poll_payments_loop(bot=None):
                     continue
                 try:
                     data   = await get_invoice(str(dep["invoice_id"]))
+                    logger.info(f"Invoice {dep['invoice_id']} poll response: {data}")
                     status = (data.get("status") or "").lower()
 
                     if status and status.lower() == "paid":
