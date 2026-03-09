@@ -273,4 +273,20 @@ async def admin_add_balance(
         return RedirectResponse("/admin/login", status_code=303)
     if amount > 0:
         db.update_user_balance(telegram_id, amount)
+        # Notify user via Telegram
+        try:
+            import aiohttp as _aio
+            from config import TELEGRAM_BOT_TOKEN as _TOKEN
+            msg = (
+                f"💰 *Balance Added by Admin*\n\n"
+                f"*${amount:.2f} USD* has been added to your account by the admin.\n"
+                f"Use /balance to check your new balance."
+            )
+            async with _aio.ClientSession() as s:
+                await s.post(
+                    f"https://api.telegram.org/bot{_TOKEN}/sendMessage",
+                    json={"chat_id": telegram_id, "text": msg, "parse_mode": "Markdown"},
+                )
+        except Exception as e:
+            print(f"Could not notify user {telegram_id}: {e}")
     return RedirectResponse("/admin/users", status_code=303)
