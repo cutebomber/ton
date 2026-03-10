@@ -65,6 +65,7 @@ def init_db():
         )
     """)
 
+    init_wallets_table(conn)
     conn.commit()
     conn.close()
     print("✅ Database initialised.")
@@ -266,3 +267,75 @@ def get_admin_stats():
     }
     conn.close()
     return stats
+
+
+# ── Wallets ───────────────────────────────────────────────────────────────────
+
+def init_wallets_table(conn):
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS sender_wallets (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            label        TEXT NOT NULL,
+            address      TEXT NOT NULL,
+            mnemonic     TEXT NOT NULL,
+            balance_ton  REAL DEFAULT 0,
+            is_active    INTEGER DEFAULT 1,
+            last_used_at INTEGER DEFAULT 0,
+            added_at     INTEGER DEFAULT (strftime('%s','now'))
+        )
+    """)
+    conn.commit()
+
+def get_active_wallets():
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM sender_wallets WHERE is_active=1 ORDER BY last_used_at ASC"
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def get_all_wallets():
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM sender_wallets ORDER BY added_at DESC").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def add_wallet(label, address, mnemonic):
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO sender_wallets (label, address, mnemonic) VALUES (?,?,?)",
+        (label, address, mnemonic)
+    )
+    conn.commit()
+    conn.close()
+
+def update_wallet_balance(wallet_id, balance_ton):
+    conn = get_conn()
+    conn.execute("UPDATE sender_wallets SET balance_ton=? WHERE id=?", (balance_ton, wallet_id))
+    conn.commit()
+    conn.close()
+
+def update_wallet_last_used(wallet_id):
+    import time
+    conn = get_conn()
+    conn.execute("UPDATE sender_wallets SET last_used_at=? WHERE id=?", (int(time.time()), wallet_id))
+    conn.commit()
+    conn.close()
+
+def toggle_wallet(wallet_id, is_active):
+    conn = get_conn()
+    conn.execute("UPDATE sender_wallets SET is_active=? WHERE id=?", (is_active, wallet_id))
+    conn.commit()
+    conn.close()
+
+def delete_wallet(wallet_id):
+    conn = get_conn()
+    conn.execute("DELETE FROM sender_wallets WHERE id=?", (wallet_id,))
+    conn.commit()
+    conn.close()
+
+def get_wallet_by_id(wallet_id):
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM sender_wallets WHERE id=?", (wallet_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
