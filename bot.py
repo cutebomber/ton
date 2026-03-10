@@ -43,12 +43,13 @@ SEP2 = "═" * 28
 # ── Conversation states ───────────────────────────────────────────────────────
 (DEP_CURRENCY, DEP_AMOUNT, PROMO_MEMO, PROMO_ADDRESSES, PROMO_CONFIRM) = range(5)
 
-MENU_FILTER = "^(💎 Deposit|🚀 New Promo|📊 My Orders|❓ Help)$"
+MENU_FILTER = "^(💎 Deposit|🚀 New Promo|📊 My Orders|👤 My Account|❓ Help)$"
 
 MAIN_MENU = ReplyKeyboardMarkup(
     [
-        [KeyboardButton("💎 Deposit"),   KeyboardButton("🚀 New Promo")],
-        [KeyboardButton("📊 My Orders"), KeyboardButton("❓ Help")],
+        [KeyboardButton("💎 Deposit"),    KeyboardButton("🚀 New Promo")],
+        [KeyboardButton("📊 My Orders"),  KeyboardButton("👤 My Account")],
+        [KeyboardButton("❓ Help")],
     ],
     resize_keyboard=True,
     input_field_placeholder="Select an action...",
@@ -113,6 +114,52 @@ async def balance_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"<i>Tap {TON} Deposit to top up</i>",
         reply_markup=MAIN_MENU,
     )
+
+
+# ── My Account ───────────────────────────────────────────────────────────────
+
+async def account_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    uid  = update.effective_user.id
+    user = update.effective_user
+    bal  = db.get_user_balance(uid)
+    rate = await get_ton_usd_rate()
+    ton_eq = round(bal / rate, 4) if rate > 0 else 0
+
+    orders = db.get_user_orders(uid)
+    total  = len(orders)
+    done   = sum(1 for o in orders if o["status"] == "completed")
+    spent  = sum(o["total_cost_usd"] for o in orders)
+    addrs  = sum(o["total_addresses"] for o in orders)
+
+    deposits      = db.get_user_deposits(uid)
+    dep_confirmed = [d for d in deposits if d["status"] == "confirmed"]
+    total_dep_usd = sum(d["amount_usd"] for d in dep_confirmed)
+
+    dep_lines = ""
+    for d in dep_confirmed[:3]:
+        dep_lines += f"  {CHECK} <code>${d['amount_usd']:.2f}</code> via <code>{d['currency']}</code>\n"
+    if not dep_lines:
+        dep_lines = "  <i>No deposits yet</i>\n"
+
+    username = f"@{user.username}" if user.username else user.first_name
+
+    msg = (
+        f"{USER} <b>My Account</b>\n"
+        f"<code>{SEP2}</code>\n\n"
+        f"\U0001f464 <b>{username}</b>\n"
+        f"\U0001faaa ID: <code>{uid}</code>\n\n"
+        f"{WALLET} <b>Balance</b>\n"
+        f"  <code>${bal:.4f} USD</code>  ≈  <code>{ton_eq} TON</code>\n\n"
+        f"{CHART} <b>Order Stats</b>\n"
+        f"  Total: <code>{total}</code>  •  Done: <code>{done}</code>\n"
+        f"  Spent: <code>${spent:.2f}</code>  •  Addresses: <code>{addrs}</code>\n\n"
+        f"{TON} <b>Deposit History</b>\n"
+        f"  Total deposited: <code>${total_dep_usd:.2f} USD</code>\n"
+        f"{dep_lines}\n"
+        f"<code>{SEP}</code>\n"
+        f"<i>Tap {WALLET} Deposit to top up</i>"
+    )
+    await update.message.reply_html(msg, reply_markup=MAIN_MENU)
 
 
 # ── /help ─────────────────────────────────────────────────────────────────────
@@ -419,8 +466,9 @@ async def cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     text = update.message.text if update.message else ""
     if text == "💎 Deposit":   return await deposit_start(update, ctx)
     if text == "🚀 New Promo": return await promo_start(update, ctx)
-    if text == "📊 My Orders": return await orders_cmd(update, ctx)
-    if text == "❓ Help":       return await help_cmd(update, ctx)
+    if text == "📊 My Orders":  return await orders_cmd(update, ctx)
+    if text == "👤 My Account": return await account_cmd(update, ctx)
+    if text == "❓ Help":        return await help_cmd(update, ctx)
     await update.message.reply_html(f"{CROSS} Cancelled.", reply_markup=MAIN_MENU)
     return ConversationHandler.END
 
@@ -429,8 +477,9 @@ async def menu_button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text == "💎 Deposit":   return await deposit_start(update, ctx)
     if text == "🚀 New Promo": return await promo_start(update, ctx)
-    if text == "📊 My Orders": return await orders_cmd(update, ctx)
-    if text == "❓ Help":       return await help_cmd(update, ctx)
+    if text == "📊 My Orders":  return await orders_cmd(update, ctx)
+    if text == "👤 My Account": return await account_cmd(update, ctx)
+    if text == "❓ Help":        return await help_cmd(update, ctx)
 
 
 # ── Notifications (called by scheduler) ──────────────────────────────────────
@@ -507,6 +556,7 @@ def build_app():
     app.add_handler(CommandHandler("help",    help_cmd))
     app.add_handler(CommandHandler("balance", balance_cmd))
     app.add_handler(CommandHandler("orders",  orders_cmd))
+    app.add_handler(CommandHandler("account", account_cmd))
     app.add_handler(deposit_conv)
     app.add_handler(promo_conv)
     app.add_handler(MessageHandler(
