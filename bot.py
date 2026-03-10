@@ -149,60 +149,9 @@ async def deposit_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"<code>{SEP2}</code>\n\n"
         f"How much <b>USD</b> do you want to add to your balance?\n\n"
         f"Reply with an amount (e.g. <code>10</code>):\n\n"
-        f"<i>Minimum: <code>$1.00</code> — Payments via OxaPay</i>",
+        f"<i>Minimum: <code>$1.00</code> · You can pay with any crypto on the next page</i>",
     )
     return DEP_AMOUNT
-
-
-async def dep_currency(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """User picked a currency to pay with — create the invoice."""
-    query = update.callback_query
-    await query.answer()
-    currency = query.data.replace("dep_", "")
-    usd_amount = ctx.user_data.get("dep_usd_amount", 0)
-    uid        = query.from_user.id
-    emoji, name = CURRENCY_INFO.get(currency, ("💰", currency))
-
-    await query.edit_message_text(
-        f"{FAST} <b>Creating invoice...</b>",
-        parse_mode="HTML",
-    )
-
-    try:
-        invoice = await create_invoice(
-            amount=usd_amount,
-            currency="USDT",        # OxaPay accepts USD value via USDT as base
-            order_id=str(uid),
-            description=f"Tonvertise — ${usd_amount} USD via {currency}",
-            lifetime=60,
-            pay_currency=currency,  # user pays in their chosen coin
-        )
-    except Exception as e:
-        logger.error(f"OxaPay error: {e}")
-        await query.edit_message_text(
-            f"{CROSS} Failed to create invoice:\n<code>{e}</code>",
-            parse_mode="HTML",
-        )
-        return ConversationHandler.END
-
-    db.create_deposit(uid, currency, usd_amount, invoice_id=str(invoice.get("track_id")))
-    pay_link = invoice["payment_url"]
-
-    await query.edit_message_text(
-        f"{CHECK} <b>Invoice Created!</b>\n"
-        f"<code>{SEP2}</code>\n\n"
-        f"💵 USD Value:  <code>${usd_amount}</code>\n"
-        f"{emoji} Pay with:  <code>{name} ({currency})</code>\n"
-        f"⏱ Expires:    <code>60 minutes</code>\n"
-        f"🔒 Secured by OxaPay\n\n"
-        f"👇 <b>Tap below to pay</b>",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton(f"💳 Pay ${usd_amount} in {currency}", url=pay_link)
-        ]]),
-        disable_web_page_preview=True,
-    )
-    return ConversationHandler.END
 
 
 async def dep_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -214,22 +163,43 @@ async def dep_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_html(f"{CROSS} Please enter a valid amount (minimum <code>$1</code>):")
         return DEP_AMOUNT
 
-    ctx.user_data["dep_usd_amount"] = usd_amount
+    uid      = update.effective_user.id
+    wait_msg = await update.message.reply_html(f"{FAST} <b>Creating invoice...</b>")
 
-    # Show currency picker
-    buttons = []
-    for c in OXAPAY_CURRENCIES:
-        emoji, name = CURRENCY_INFO.get(c, ("💰", c))
-        buttons.append([InlineKeyboardButton(f"{emoji} Pay with {name} ({c})", callback_data=f"dep_{c}")])
+    try:
+        invoice = await create_invoice(
+            amount=usd_amount,
+            currency="USDT",
+            order_id=str(uid),
+            description=f"Tonvertise — ${usd_amount} USD",
+            lifetime=60,
+        )
+    except Exception as e:
+        logger.error(f"OxaPay error: {e}")
+        await wait_msg.edit_text(
+            f"{CROSS} Failed to create invoice:\n<code>{e}</code>",
+            parse_mode="HTML",
+        )
+        return ConversationHandler.END
 
-    await update.message.reply_html(
-        f"{WALLET} <b>Amount: <code>${usd_amount:.2f} USD</code></b>\n"
+    db.create_deposit(uid, "USDT", usd_amount, invoice_id=str(invoice.get("track_id")))
+    pay_link = invoice["payment_url"]
+
+    await wait_msg.edit_text(
+        f"{CHECK} <b>Invoice Created!</b>\n"
         f"<code>{SEP2}</code>\n\n"
-        f"Now choose which crypto you want to pay with:\n\n"
-        f"<i>OxaPay will calculate the exact coin amount at current rates</i>",
-        reply_markup=InlineKeyboardMarkup(buttons),
+        f"💵 Amount:   <code>${usd_amount:.2f} USD</code>\n"
+        f"⏱ Expires:  <code>60 minutes</code>\n"
+        f"🔒 Secured by OxaPay\n\n"
+        f"<i>Choose your preferred crypto on the payment page</i>\n\n"
+        f"👇 <b>Tap below to pay</b>",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton(f"💳 Pay ${usd_amount:.2f} USD", url=pay_link)
+        ]]),
+        disable_web_page_preview=True,
     )
-    return DEP_CURRENCY
+    return ConversationHandler.END
 
 
 # ── /promo ────────────────────────────────────────────────────────────────────
@@ -515,8 +485,7 @@ def build_app():
             MessageHandler(filters.Regex("^💎 Deposit$"), deposit_start),
         ],
         states={
-            DEP_CURRENCY: [CallbackQueryHandler(dep_currency, pattern="^dep_")],
-            DEP_AMOUNT:   [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(MENU_FILTER), dep_amount)],
+            DEP_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(MENU_FILTER), dep_amount)],
         },
         fallbacks=[CommandHandler("cancel", cancel), MessageHandler(filters.Regex(MENU_FILTER), cancel)],
     )
