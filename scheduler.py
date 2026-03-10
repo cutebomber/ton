@@ -13,6 +13,7 @@ import logging
 
 import database as db
 from ton import send_ton, get_wallet_balance
+from wallets import get_next_wallet, send_ton_from_wallet
 from oxapay import get_invoice
 from prices import ton_to_usd, get_ton_usd_rate
 from config import (
@@ -147,9 +148,18 @@ async def _process_order(order, bot):
 
     for target in targets:
         unique_memo = _unique_memo(memo)
-        logger.info(f"📤 Sending {TON_SEND_AMOUNT} TON → {target['address']} | memo: {unique_memo!r}")
-        result = await send_ton(target["address"], TON_SEND_AMOUNT, unique_memo)
-        logger.info(f"send_ton result: {result}")
+
+        # Pick next available wallet (round-robin)
+        wallet = await get_next_wallet()
+        if wallet:
+            logger.info(f"📤 Wallet #{wallet['id']} ({wallet['label']}) → {target['address']} | memo: {unique_memo!r}")
+            result = await send_ton_from_wallet(wallet, target["address"], TON_SEND_AMOUNT, unique_memo)
+        else:
+            # Fallback to admin wallet if no sender wallets configured
+            logger.warning("No sender wallets available — falling back to admin wallet")
+            result = await send_ton(target["address"], TON_SEND_AMOUNT, unique_memo)
+
+        logger.info(f"send result: {result}")
 
         if result["success"]:
             db.update_target(target["id"], result["tx_hash"], "sent")
@@ -158,7 +168,7 @@ async def _process_order(order, bot):
             db.update_target(target["id"], None, "failed")
             logger.warning(f"❌ → {target['address'][:12]}...: {result['error']}")
 
-        await asyncio.sleep(8)  # wait for seqno to increment on-chain
+        await asyncio.sleep(2)  # short delay — different wallets have independent seqnos
 
     db.set_order_status(order_id, "completed")
 
