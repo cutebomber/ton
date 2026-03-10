@@ -36,6 +36,7 @@ CHART    = ce("5994378914636500516", "📊")
 USER     = ce("6161326861822466721", "👤")
 ANNOUNCE = ce("6161049750532529553", "📢")
 CASH     = ce("6159093908325277097", "💵")
+CLOCK    = ce("6161164658087567007", "🕐")
 WAVE     = ce("5994750571041525522", "👋")
 
 SEP  = "─" * 28
@@ -457,7 +458,7 @@ async def _show_orders(message, telegram_id: int, page: int = 0):
             f"\n{e} <b>Order #{o['id']}</b>\n"
             f"   📍 <code>{o['total_addresses']}</code> addrs  •  {CASH} <code>${o['total_cost_usd']}</code>\n"
             f"   <blockquote>{o['memo_text'][:80]}{'...' if len(o['memo_text']) > 80 else ''}</blockquote>"
-            f"   🕐 <code>{ts}</code>  •  <code>{o['status']}</code>"
+            f"   {CLOCK} <code>{ts}</code>  •  <code>{o['status']}</code>"
         )
 
     # Pagination buttons
@@ -502,7 +503,7 @@ async def orders_page_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"\n{e} <b>Order #{o['id']}</b>\n"
             f"   📍 <code>{o['total_addresses']}</code> addrs  •  {CASH} <code>${o['total_cost_usd']}</code>\n"
             f"   <blockquote>{o['memo_text'][:80]}{'...' if len(o['memo_text']) > 80 else ''}</blockquote>"
-            f"   🕐 <code>{ts}</code>  •  <code>{o['status']}</code>"
+            f"   {CLOCK} <code>{ts}</code>  •  <code>{o['status']}</code>"
         )
 
     nav = []
