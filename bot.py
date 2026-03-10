@@ -35,6 +35,7 @@ FAST     = ce("5935795874251674052", "⚡")
 CHART    = ce("5994378914636500516", "📊")
 USER     = ce("6161326861822466721", "👤")
 ANNOUNCE = ce("6161049750532529553", "📢")
+CASH     = ce("6159093908325277097", "💵")
 WAVE     = ce("5994750571041525522", "👋")
 
 SEP  = "─" * 28
@@ -258,7 +259,7 @@ async def promo_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_html(
         f"{ANNOUNCE} <b>New Promo Order</b>\n"
         f"<code>{SEP2}</code>\n\n"
-        f"💵 Cost:     <code>${PRICE_PER_ADDRESS_USD}</code> per address\n"
+        f"{CASH} Cost:     <code>${PRICE_PER_ADDRESS_USD}</code> per address\n"
         f"{TON} Sends:   <code>{TON_SEND_AMOUNT} TON</code> per address\n"
         f"{WALLET} Balance: <code>${balance:.4f} USD</code>\n\n"
         f"<code>{SEP}</code>\n"
