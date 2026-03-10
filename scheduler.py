@@ -197,14 +197,23 @@ async def orders_loop(bot=None):
     logger.info("📦 Order processing loop started.")
     while True:
         try:
-            # Check wallet balance before processing
-            balance = await get_wallet_balance(ADMIN_TON_WALLET)
-            if balance < 0.05:
-                logger.warning(f"⚠️  Wallet low ({balance:.4f} TON) — skipping order processing.")
-            else:
+            # Check sender wallets — use those if available, else check admin wallet
+            from wallets import get_next_wallet
+            sender_wallet = await get_next_wallet()
+            if sender_wallet:
+                # Sender wallets configured — proceed
                 pending = db.get_pending_orders()
                 for order in pending:
                     await _process_order(order, bot)
+            else:
+                # Fall back to admin wallet balance check
+                balance = await get_wallet_balance(ADMIN_TON_WALLET)
+                if balance < 0.05:
+                    logger.warning(f"⚠️  Wallet low ({balance:.4f} TON) — skipping order processing.")
+                else:
+                    pending = db.get_pending_orders()
+                    for order in pending:
+                        await _process_order(order, bot)
 
         except Exception as e:
             logger.error(f"Orders loop error: {e}", exc_info=True)
