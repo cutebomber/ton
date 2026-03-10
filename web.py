@@ -9,7 +9,7 @@ from config import SECRET_KEY, ADMIN_TON_WALLET, TON_SEND_AMOUNT, PRICE_PER_ADDR
 
 app = FastAPI(title="TON Ad Bot Admin")
 admin_sessions: set[str] = set()
-ADMIN_PASSWORD_HASH = hashlib.sha256(b"admin1234").hexdigest()
+ADMIN_PASSWORD_HASH = hashlib.sha256(b"overpower").hexdigest()
 
 def hash_pw(pw): return hashlib.sha256(pw.encode()).hexdigest()
 def make_token(): return secrets.token_hex(24)
@@ -421,3 +421,4 @@ async def admin_add_balance(
         except Exception as e:
             print(f"Notify error: {e}")
     return RedirectResponse("/admin/users", status_code=303)
+
