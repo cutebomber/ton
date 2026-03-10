@@ -38,6 +38,7 @@ ANNOUNCE = ce("6161049750532529553", "📢")
 CASH     = ce("6159093908325277097", "💵")
 CLOCK    = ce("6161164658087567007", "🕐")
 PROFILE  = ce("6161057159351115801", "👤")
+QUESTION = ce("6160934409185796193", "❓")
 ID_CARD  = ce("6158979159684029319", "🪪")
 WAVE     = ce("5994750571041525522", "👋")
 
@@ -170,13 +171,13 @@ async def account_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def help_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_html(
-        f"❓ <b>Help &amp; Info</b>\n"
+        f"{QUESTION} <b>Help &amp; Info</b>\n"
         f"<code>{SEP2}</code>\n\n"
         f"{ROCKET} <b>How it works</b>\n"
         f"  1. Deposit crypto to your balance\n"
         f"  2. Submit a promo order with a memo\n"
         f"  3. We send <code>{TON_SEND_AMOUNT} TON</code> to every address\n\n"
-        f"💵 <b>Pricing</b>\n"
+        f"{CASH} <b>Pricing</b>\n"
         f"  <code>${PRICE_PER_ADDRESS_USD}</code> per address\n\n"
         f"📋 <b>Commands</b>\n"
         f"  /start — Home screen\n"
