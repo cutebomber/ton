@@ -37,6 +37,8 @@ USER     = ce("6161326861822466721", "👤")
 ANNOUNCE = ce("6161049750532529553", "📢")
 CASH     = ce("6159093908325277097", "💵")
 CLOCK    = ce("6161164658087567007", "🕐")
+PROFILE  = ce("6161057159351115801", "👤")
+ID_CARD  = ce("6158979159684029319", "🪪")
 WAVE     = ce("5994750571041525522", "👋")
 
 SEP  = "─" * 28
@@ -148,8 +150,8 @@ async def account_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = (
         f"{USER} <b>My Account</b>\n"
         f"<code>{SEP2}</code>\n\n"
-        f"\U0001f464 <b>{username}</b>\n"
-        f"\U0001faaa ID: <code>{uid}</code>\n\n"
+        f"{PROFILE} <b>{username}</b>\n"
+        f"{ID_CARD} ID: <code>{uid}</code>\n\n"
         f"{WALLET} <b>Balance</b>\n"
         f"  <code>${bal:.4f} USD</code>  ≈  <code>{ton_eq} TON</code>\n\n"
         f"{CHART} <b>Order Stats</b>\n"
