@@ -269,7 +269,7 @@ async def promo_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"<code>{SEP}</code>\n"
         f"<b>Step 1 of 3</b> — Enter your <b>memo text</b>\n"
         f"<i>This message will be attached to every TON transaction.</i>\n"
-        f"<i>Max 500 characters</i>",
+        f"<i>Max <code>127 bytes</code> — keep it short &amp; punchy</i>",
         reply_markup=InlineKeyboardMarkup([[
             InlineKeyboardButton("❌ Cancel", callback_data="promo_cancel")
         ]]),
@@ -279,9 +279,16 @@ async def promo_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def promo_memo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     memo = update.message.text.strip()
-    if len(memo) > 500:
+    byte_len = len(memo.encode("utf-8"))
+    if byte_len > 127:
         await update.message.reply_html(
-            f"{CROSS} <b>Too long!</b> <code>{len(memo)}/500</code> chars. Please shorten it:"
+            f"{CROSS} <b>Memo too long!</b>\n\n"
+            f"TON transactions allow max <code>127 bytes</code>.\n"
+            f"Your memo is <code>{byte_len} bytes</code> — "
+            f"<code>{byte_len - 127}</code> bytes over the limit.\n\n"
+            f"<i>Tip: shorter = better. Try something like:</i>\n"
+            f"<blockquote>Tonvertise — first TON ad bot. @YourBot</blockquote>\n"
+            f"Please shorten and resend:"
         )
         return PROMO_MEMO
 
