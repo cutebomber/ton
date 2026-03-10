@@ -463,9 +463,9 @@ async def notify_deposit_confirmed(bot, telegram_id: int, amount_crypto: float,
             telegram_id,
             f"{CHECK} <b>Deposit Confirmed!</b>\n"
             f"<code>{SEP2}</code>\n\n"
-            f"{emoji} <code>{amount_crypto} {currency}</code>\n"
-            f"💵 Credited:  <code>${amount_usd:.4f} USD</code>\n"
-            f"{WALLET} Balance:  <code>${new_balance:.4f} USD</code>\n\n"
+            f"{TON} <code>{amount_crypto} {currency}</code>\n"
+            f"{WALLET} Credited:  <code>${amount_usd:.4f} USD</code>\n"
+            f"{TON} Balance:  <code>${new_balance:.4f} USD</code>\n\n"
             f"<i>Ready to launch a promo? Tap</i> {ROCKET} <b>New Promo</b>",
             parse_mode="HTML",
         )
