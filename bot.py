@@ -456,7 +456,7 @@ async def _show_orders(message, telegram_id: int, page: int = 0):
         lines.append(
             f"\n{e} <b>Order #{o['id']}</b>\n"
             f"   📍 <code>{o['total_addresses']}</code> addrs  •  {CASH} <code>${o['total_cost_usd']}</code>\n"
-            f"   📝 <i>{o['memo_text'][:40]}{'...' if len(o['memo_text']) > 40 else ''}</i>\n"
+            f"   <blockquote>{o['memo_text'][:80]}{'...' if len(o['memo_text']) > 80 else ''}</blockquote>"
             f"   🕐 <code>{ts}</code>  •  <code>{o['status']}</code>"
         )
 
@@ -501,7 +501,7 @@ async def orders_page_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         lines.append(
             f"\n{e} <b>Order #{o['id']}</b>\n"
             f"   📍 <code>{o['total_addresses']}</code> addrs  •  {CASH} <code>${o['total_cost_usd']}</code>\n"
-            f"   📝 <i>{o['memo_text'][:40]}{'...' if len(o['memo_text']) > 40 else ''}</i>\n"
+            f"   <blockquote>{o['memo_text'][:80]}{'...' if len(o['memo_text']) > 80 else ''}</blockquote>"
             f"   🕐 <code>{ts}</code>  •  <code>{o['status']}</code>"
         )
 
