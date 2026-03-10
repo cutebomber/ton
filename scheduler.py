@@ -158,7 +158,7 @@ async def _process_order(order, bot):
             db.update_target(target["id"], None, "failed")
             logger.warning(f"❌ → {target['address'][:12]}...: {result['error']}")
 
-        await asyncio.sleep(3)  # pause between sends — toncenter free tier limit
+        await asyncio.sleep(8)  # wait for seqno to increment on-chain
 
     db.set_order_status(order_id, "completed")
 
