@@ -14,7 +14,7 @@ LOG_CHANNEL_ID = -1003751370172
 
 # ── TON Wallet ────────────────────────────────────────────────
 # The fixed admin wallet that funds all promo sends
-ADMIN_TON_WALLET   = "UQAvAJUDMFJRfBZeRG2-zCTrirjBAx0y31k9rXdkCMS8jEpj"
+ADMIN_TON_WALLET   = "UQBZ5C6cOo1LNWucXJWfzq8biUpLwJ8sBBALLB_cQn-T6VJ8"
 ADMIN_TON_MNEMONIC = "cash matrix behind engage hover shoulder include dove process bachelor body cousin lemon around kitten utility trend sunset arm swift host purity animal dose"
 
 # ── TON HTTP API (free key at https://toncenter.com) ──────────
@@ -38,4 +38,5 @@ SECRET_KEY = "mYb0t$ecr3tK3y#2024!xQpLzR9vTnWk"
 OXAPAY_MERCHANT_KEY = "P5JRXH-BGKQTO-TID5OG-OATXBQ"
 
 # Currencies users can deposit
+
 OXAPAY_CURRENCIES = ["TON", "BTC", "ETH", "USDT", "USDC", "LTC"]
