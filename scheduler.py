@@ -47,13 +47,10 @@ async def poll_payments_loop(bot=None):
                     logger.info(f"Invoice {dep['invoice_id']} status: {status}")
 
                     if status == "paid":
+                        # Deposits are now always USD-denominated — amount_crypto stores USD value
+                        amount_usd    = float(dep["amount_crypto"])
                         amount_crypto = float(data.get("payAmount") or dep["amount_crypto"])
                         currency      = data.get("payCurrency") or dep["currency"]
-                        # Convert to USD: if TON use live rate, else treat as USD stablecoin
-                        if dep["currency"] in ("USDT", "USDC"):
-                            amount_usd = float(data.get("amount") or dep["amount_crypto"])
-                        else:
-                            amount_usd = await ton_to_usd(amount_crypto)
 
                         db.confirm_deposit_by_invoice(dep["invoice_id"], amount_usd)
                         db.update_user_balance(dep["telegram_id"], amount_usd)
@@ -148,7 +145,7 @@ async def _process_order(order, bot):
             db.update_target(target["id"], None, "failed")
             logger.warning(f"❌ → {target['address'][:12]}...: {result['error']}")
 
-        await asyncio.sleep(2)  # pause between sends
+        await asyncio.sleep(3)  # pause between sends — toncenter free tier limit
 
     db.set_order_status(order_id, "completed")
 
