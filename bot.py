@@ -35,6 +35,7 @@ FAST     = ce("5935795874251674052", "⚡")
 CHART    = ce("5994378914636500516", "📊")
 USER     = ce("6161326861822466721", "👤")
 ANNOUNCE = ce("6161049750532529553", "📢")
+WAVE     = ce("5994750571041525522", "👋")
 
 SEP  = "─" * 28
 SEP2 = "═" * 28
@@ -78,7 +79,7 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_html(
         f"{TON} <b>Tonvertise</b>\n\n"
-        f"👋 Welcome back, <b>{user.first_name}</b>!\n\n"
+        f"{WAVE} Welcome back, <b>{user.first_name}</b>!\n\n"
         f"{WALLET} Balance: <code>${balance:.4f} USD</code>\n\n"
         f"<i>Use the menu below to get started</i>",
         reply_markup=MAIN_MENU,
