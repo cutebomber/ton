@@ -200,10 +200,24 @@ async def send_ton(to_address: str, amount_ton: float, memo: str) -> dict:
                 logger.info(f"sendBoc result: {result}")
 
                 if result.get("ok"):
-                    # sendBoc doesn't always return hash — that's fine
                     tx_hash = ""
                     if isinstance(result.get("result"), dict):
                         tx_hash = result["result"].get("hash", "")
+
+                    # Wait for seqno to increment on-chain before releasing lock
+                    # This prevents duplicate seqno errors on back-to-back sends
+                    for _ in range(10):
+                        await asyncio.sleep(3)
+                        wi2 = await _tc_get(session, "getWalletInformation", {"address": sender_addr})
+                        try:
+                            new_seqno = int(wi2["result"].get("seqno") or 0)
+                            if new_seqno > seqno:
+                                logger.info(f"Seqno incremented to {new_seqno} ✅")
+                                break
+                        except Exception:
+                            pass
+                        logger.info(f"Waiting for seqno to increment (current={seqno})...")
+
                     return {"success": True, "tx_hash": tx_hash, "error": None}
                 else:
                     error = result.get("error") or str(result.get("result", result))
