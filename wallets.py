@@ -24,19 +24,37 @@ def _get_lock(wallet_id: int) -> asyncio.Lock:
 async def get_next_wallet() -> Optional[dict]:
     """
     Returns the next available active wallet with sufficient balance.
+    Fetches live balance from chain — does not rely on cached DB value.
     Uses round-robin via last_used_at timestamp.
     """
+    import aiohttp
+    from ton import _tc_get
+
     wallets = db.get_active_wallets()
     if not wallets:
         return None
-    # Pick wallet with oldest last_used (round-robin) that has enough balance
-    eligible = [w for w in wallets if w["balance_ton"] >= TON_SEND_AMOUNT + 0.015]
-    if not eligible:
-        logger.warning("No wallets with sufficient balance!")
-        return None
-    # Sort by last_used_at ascending (least recently used first)
-    eligible.sort(key=lambda w: w["last_used_at"] or 0)
-    return eligible[0]
+
+    # Sort by last_used_at ascending (round-robin)
+    wallets.sort(key=lambda w: w["last_used_at"] or 0)
+
+    for w in wallets:
+        try:
+            async with aiohttp.ClientSession() as s:
+                data = await _tc_get(s, "getAddressBalance", {"address": w["address"]})
+                if data.get("ok"):
+                    balance = int(data["result"]) / 1e9
+                    db.update_wallet_balance(w["id"], balance)
+                    w["balance_ton"] = balance
+                    if balance >= TON_SEND_AMOUNT + 0.015:
+                        logger.info(f"Selected wallet #{w['id']} ({w['label']}) — {balance:.4f} TON")
+                        return w
+                    else:
+                        logger.warning(f"Wallet #{w['id']} ({w['label']}) low: {balance:.4f} TON — skipping")
+        except Exception as e:
+            logger.warning(f"Could not check balance for wallet #{w['id']}: {e}")
+
+    logger.warning("No sender wallets with sufficient balance found!")
+    return None
 
 
 async def send_ton_from_wallet(wallet: dict, to_address: str, amount_ton: float, memo: str) -> dict:
