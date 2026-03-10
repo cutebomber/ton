@@ -420,7 +420,9 @@ async def promo_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # ── /orders ───────────────────────────────────────────────────────────────────
 
-async def _show_orders(message, telegram_id: int):
+ORDERS_PER_PAGE = 5
+
+async def _show_orders(message, telegram_id: int, page: int = 0):
     orders = db.get_user_orders(telegram_id)
     if not orders:
         await message.reply_html(
@@ -432,6 +434,10 @@ async def _show_orders(message, telegram_id: int):
         )
         return
 
+    total_pages = (len(orders) + ORDERS_PER_PAGE - 1) // ORDERS_PER_PAGE
+    page        = max(0, min(page, total_pages - 1))
+    page_orders = orders[page * ORDERS_PER_PAGE:(page + 1) * ORDERS_PER_PAGE]
+
     STATUS_E = {
         "pending":    "⏳",
         "processing": FAST,
@@ -439,25 +445,79 @@ async def _show_orders(message, telegram_id: int):
         "failed":     CROSS,
     }
 
-    lines = [f"{CHART} <b>My Orders</b>\n<code>{SEP2}</code>\n"]
-    for o in orders:
+    lines = [
+        f"{CHART} <b>My Orders</b>\n"
+        f"<code>{SEP2}</code>\n"
+        f"<i>Page {page + 1} of {total_pages}</i>\n"
+    ]
+    for o in page_orders:
         e  = STATUS_E.get(o["status"], "❓")
         ts = datetime.fromtimestamp(o["created_at"]).strftime("%b %d, %H:%M")
         lines.append(
-            f"{e} <b>Order #{o['id']}</b>\n"
-            f"   📍 <code>{o['total_addresses']}</code> addrs  •  💵 <code>${o['total_cost_usd']}</code>\n"
+            f"\n{e} <b>Order #{o['id']}</b>\n"
+            f"   📍 <code>{o['total_addresses']}</code> addrs  •  {CASH} <code>${o['total_cost_usd']}</code>\n"
             f"   📝 <i>{o['memo_text'][:40]}{'...' if len(o['memo_text']) > 40 else ''}</i>\n"
-            f"   🕐 <code>{ts}</code>  •  <code>{o['status']}</code>\n"
+            f"   🕐 <code>{ts}</code>  •  <code>{o['status']}</code>"
         )
 
-    await message.reply_html(
-        "\n".join(lines),
-        reply_markup=MAIN_MENU,
-    )
+    # Pagination buttons
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton("← Prev", callback_data=f"orders_page_{page - 1}"))
+    if page < total_pages - 1:
+        nav.append(InlineKeyboardButton("Next →", callback_data=f"orders_page_{page + 1}"))
+
+    kb = InlineKeyboardMarkup([nav]) if nav else None
+
+    await message.reply_html("\n".join(lines), reply_markup=kb)
+
+
+async def orders_page_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    page = int(query.data.replace("orders_page_", ""))
+    uid  = query.from_user.id
+
+    orders      = db.get_user_orders(uid)
+    total_pages = (len(orders) + ORDERS_PER_PAGE - 1) // ORDERS_PER_PAGE
+    page        = max(0, min(page, total_pages - 1))
+    page_orders = orders[page * ORDERS_PER_PAGE:(page + 1) * ORDERS_PER_PAGE]
+
+    STATUS_E = {
+        "pending":    "⏳",
+        "processing": FAST,
+        "completed":  CHECK,
+        "failed":     CROSS,
+    }
+
+    lines = [
+        f"{CHART} <b>My Orders</b>\n"
+        f"<code>{SEP2}</code>\n"
+        f"<i>Page {page + 1} of {total_pages}</i>\n"
+    ]
+    for o in page_orders:
+        e  = STATUS_E.get(o["status"], "❓")
+        ts = datetime.fromtimestamp(o["created_at"]).strftime("%b %d, %H:%M")
+        lines.append(
+            f"\n{e} <b>Order #{o['id']}</b>\n"
+            f"   📍 <code>{o['total_addresses']}</code> addrs  •  {CASH} <code>${o['total_cost_usd']}</code>\n"
+            f"   📝 <i>{o['memo_text'][:40]}{'...' if len(o['memo_text']) > 40 else ''}</i>\n"
+            f"   🕐 <code>{ts}</code>  •  <code>{o['status']}</code>"
+        )
+
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton("← Prev", callback_data=f"orders_page_{page - 1}"))
+    if page < total_pages - 1:
+        nav.append(InlineKeyboardButton("Next →", callback_data=f"orders_page_{page + 1}"))
+
+    kb = InlineKeyboardMarkup([nav]) if nav else None
+
+    await query.edit_message_text("\n".join(lines), parse_mode="HTML", reply_markup=kb)
 
 
 async def orders_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await _show_orders(update.message, update.effective_user.id)
+    await _show_orders(update.message, update.effective_user.id, page=0)
 
 
 # ── Cancel / menu fallback ────────────────────────────────────────────────────
@@ -558,6 +618,7 @@ def build_app():
     app.add_handler(CommandHandler("balance", balance_cmd))
     app.add_handler(CommandHandler("orders",  orders_cmd))
     app.add_handler(CommandHandler("account", account_cmd))
+    app.add_handler(CallbackQueryHandler(orders_page_cb, pattern="^orders_page_"))
     app.add_handler(deposit_conv)
     app.add_handler(promo_conv)
     app.add_handler(MessageHandler(
