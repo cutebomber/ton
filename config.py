@@ -23,7 +23,7 @@ TON_API_KEY = ""   # leave empty to use public rate-limited endpoint
 
 # ── Pricing ───────────────────────────────────────────────────
 PRICE_PER_ADDRESS_USD = 0.05   # charged to user per target address
-TON_SEND_AMOUNT       = 0.001  # TON sent to each target address
+TON_SEND_AMOUNT       = 0.01  # TON sent to each target address
 
 # ── Database ──────────────────────────────────────────────────
 DB_PATH = "ton_ad_bot.db"
@@ -40,3 +40,4 @@ OXAPAY_MERCHANT_KEY = "P5JRXH-BGKQTO-TID5OG-OATXBQ"
 # Currencies users can deposit
 
 OXAPAY_CURRENCIES = ["TON", "BTC", "ETH", "USDT", "USDC", "LTC"]
+
