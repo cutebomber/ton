@@ -7,9 +7,9 @@ import database as db
 from ton import get_wallet_balance
 from config import SECRET_KEY, ADMIN_TON_WALLET, TON_SEND_AMOUNT, PRICE_PER_ADDRESS_USD, TELEGRAM_BOT_TOKEN
 
-app = FastAPI(title="TON Ad Bot Admin")
+app = FastAPI(title="Tonvertise Admin")
 admin_sessions: set[str] = set()
-ADMIN_PASSWORD_HASH = hashlib.sha256(b"overpower").hexdigest()
+ADMIN_PASSWORD_HASH = hashlib.sha256(b"admin1234").hexdigest()
 
 def hash_pw(pw): return hashlib.sha256(pw.encode()).hexdigest()
 def make_token(): return secrets.token_hex(24)
@@ -83,14 +83,14 @@ def shell(title, body, active="dashboard"):
     )
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{title} — TON Bot Admin</title>
+<title>{title} — Tonvertise Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>{CSS}</style></head>
 <body>
 <nav class="sidebar">
   <div class="sidebar-logo">
-    <div class="name">💎 TON Bot</div>
+    <div class="name">💎 Tonvertise</div>
     <div class="sub">Admin Dashboard</div>
   </div>
   {nav_html}
@@ -193,7 +193,7 @@ async def dashboard(session: Optional[str] = Cookie(default=None)):
     )
 
     body = f"""
-    <p class="page-sub">Live overview of your TON Promo Bot</p>
+    <p class="page-sub">Live overview of your Tonvertise</p>
     <div class="stat-grid">{stats_html}</div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
@@ -421,4 +421,3 @@ async def admin_add_balance(
         except Exception as e:
             print(f"Notify error: {e}")
     return RedirectResponse("/admin/users", status_code=303)
-
