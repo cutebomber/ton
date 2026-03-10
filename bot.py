@@ -77,14 +77,9 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     done_orders  = sum(1 for o in orders if o["status"] == "completed")
 
     await update.message.reply_html(
-        f"{TON} <b>TON Promo Bot</b>\n"
-        f"<code>{SEP2}</code>\n\n"
-        f"{USER} Welcome back, <b>{user.first_name}</b>!\n\n"
-        f"{WALLET} <b>Balance</b>\n"
-        f"  <code>${balance:.4f} USD</code>  ≈  <code>{ton_eq} TON</code>\n\n"
-        f"{CHART} <b>Your Stats</b>\n"
-        f"  Orders: <code>{total_orders}</code>  •  Completed: <code>{done_orders}</code>\n\n"
-        f"<code>{SEP}</code>\n"
+        f"{TON} <b>Tonvertise</b>\n\n"
+        f"👋 Welcome back, <b>{user.first_name}</b>!\n\n"
+        f"{WALLET} Balance: <code>${balance:.4f} USD</code>\n\n"
         f"<i>Use the menu below to get started</i>",
         reply_markup=MAIN_MENU,
     )
@@ -200,7 +195,7 @@ async def dep_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             amount=amount,
             currency=currency,
             order_id=str(uid),
-            description=f"TON Promo Bot — {amount} {currency}",
+            description=f"Tonvertise — {amount} {currency}",
             lifetime=60,
         )
     except Exception as e:
