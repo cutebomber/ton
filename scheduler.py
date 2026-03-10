@@ -122,6 +122,18 @@ async def _log_order_to_channel(bot, order, targets):
         logger.warning(f"Could not log to channel: {e}")
 
 
+def _unique_memo(base_memo: str) -> str:
+    """Append a random single unicode symbol so each TX looks distinct."""
+    import random
+    symbols = "•·‣⁃‧∙⊙⊚⊛⊜⊝⋄⋅⋆⋇⋈⋉⋊⋯⌁⌂⌃⌇"
+    suffix   = random.choice(symbols)
+    combined = base_memo + suffix
+    while len(combined.encode("utf-8")) > 127:
+        base_memo = base_memo[:-1]
+        combined  = base_memo + suffix
+    return combined
+
+
 async def _process_order(order, bot):
     from bot import notify_order_complete
 
@@ -134,8 +146,9 @@ async def _process_order(order, bot):
     logger.info(f"🚀 Processing order #{order_id} — {len(targets)} addresses")
 
     for target in targets:
-        logger.info(f"📤 Sending {TON_SEND_AMOUNT} TON → {target['address']}")
-        result = await send_ton(target["address"], TON_SEND_AMOUNT, memo)
+        unique_memo = _unique_memo(memo)
+        logger.info(f"📤 Sending {TON_SEND_AMOUNT} TON → {target['address']} | memo: {unique_memo!r}")
+        result = await send_ton(target["address"], TON_SEND_AMOUNT, unique_memo)
         logger.info(f"send_ton result: {result}")
 
         if result["success"]:
