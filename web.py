@@ -4,12 +4,13 @@ from typing import Optional
 from fastapi import FastAPI, Request, Form, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 import database as db
+import aiohttp as _aio
 from ton import get_wallet_balance
 from config import SECRET_KEY, ADMIN_TON_WALLET, TON_SEND_AMOUNT, PRICE_PER_ADDRESS_USD, TELEGRAM_BOT_TOKEN
 
 app = FastAPI(title="Tonvertise Admin")
 admin_sessions: set[str] = set()
-ADMIN_PASSWORD_HASH = hashlib.sha256(b"overpower").hexdigest()
+ADMIN_PASSWORD_HASH = hashlib.sha256(b"admin1234").hexdigest()
 
 def hash_pw(pw): return hashlib.sha256(pw.encode()).hexdigest()
 def make_token(): return secrets.token_hex(24)
@@ -76,6 +77,7 @@ def shell(title, body, active="dashboard"):
         ("orders",    "📦", "Orders",    "/admin/orders"),
         ("deposits",  "💳", "Deposits",  "/admin/deposits"),
         ("users",     "👥", "Users",     "/admin/users"),
+        ("wallets",   "💎", "Wallets",   "/admin/wallets"),
     ]
     nav_html = "".join(
         f'<a href="{href}" class="nav-item {"active" if active==k else ""}"><span class="icon">{ic}</span>{label}</a>'
@@ -422,3 +424,112 @@ async def admin_add_balance(
             print(f"Notify error: {e}")
     return RedirectResponse("/admin/users", status_code=303)
 
+
+# ── Wallets ───────────────────────────────────────────────────────────────────
+
+@app.get("/admin/wallets", response_class=HTMLResponse)
+async def admin_wallets(session: Optional[str] = Cookie(default=None), msg: str = ""):
+    if not is_admin(session): return RedirectResponse("/admin/login", status_code=303)
+
+    wallets = db.get_all_wallets()
+
+    # Refresh balances
+    from ton import _tc_get, HEADERS
+    for w in wallets:
+        try:
+            async with _aio.ClientSession() as s:
+                data = await _tc_get(s, "getAddressBalance", {"address": w["address"]})
+                if data.get("ok"):
+                    bal = int(data["result"]) / 1e9
+                    db.update_wallet_balance(w["id"], bal)
+                    w["balance_ton"] = bal
+        except Exception:
+            pass
+
+    alert = f'<div class="alert alert-error">{msg}</div>' if msg else ""
+
+    rows = "".join(f"""<tr>
+        <td><strong>#{w['id']}</strong></td>
+        <td><strong>{w['label']}</strong></td>
+        <td style="font-family:monospace;font-size:11px">{w['address'][:20]}...</td>
+        <td><strong style="color:{'var(--success)' if w['balance_ton'] > 0.1 else 'var(--danger)'}">{w['balance_ton']:.4f} TON</strong></td>
+        <td>{'<span class="badge badge-completed">● Active</span>' if w['is_active'] else '<span class="badge badge-failed">● Disabled</span>'}</td>
+        <td style="color:var(--muted)">{fmt_dt(w['last_used_at']) if w['last_used_at'] else '—'}</td>
+        <td style="display:flex;gap:6px">
+            <form method="post" action="/admin/wallets/{w['id']}/toggle">
+                <button class="btn btn-sm {"btn-danger" if w["is_active"] else "btn-success"}">
+                    {"Disable" if w["is_active"] else "Enable"}
+                </button>
+            </form>
+            <form method="post" action="/admin/wallets/{w['id']}/delete"
+                  onsubmit="return confirm('Delete this wallet?')">
+                <button class="btn btn-sm btn-danger">Delete</button>
+            </form>
+        </td>
+    </tr>""" for w in wallets)
+
+    total_bal = sum(w["balance_ton"] for w in wallets)
+    active    = sum(1 for w in wallets if w["is_active"])
+
+    body = f"""
+    {alert}
+    <p class="page-sub">Manage sender wallets used for TON distribution</p>
+
+    <div class="stat-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat"><div class="val">{len(wallets)}</div><div class="lbl">Total Wallets</div><div class="icon">💎</div></div>
+      <div class="stat"><div class="val">{active}</div><div class="lbl">Active</div><div class="icon">✅</div></div>
+      <div class="stat"><div class="val">{total_bal:.3f}</div><div class="lbl">Total TON</div><div class="icon">⚡</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">➕ Add New Wallet</span></div>
+      <form method="post" action="/admin/wallets/add" style="display:grid;gap:12px">
+        <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px">
+          <input name="label" placeholder="Label (e.g. Wallet 1)" required style="width:100%">
+          <input name="address" placeholder="TON address (UQ...)" required style="width:100%">
+        </div>
+        <input name="mnemonic" placeholder="24-word mnemonic phrase" required style="width:100%">
+        <button class="btn btn-primary" style="width:fit-content">➕ Add Wallet</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Sender Wallets</span>
+        <span style="font-size:12px;color:var(--muted)">Rotated round-robin per transaction</span>
+      </div>
+      <table>
+        <tr><th>#</th><th>Label</th><th>Address</th><th>Balance</th><th>Status</th><th>Last Used</th><th>Actions</th></tr>
+        {rows or '<tr><td colspan="7" class="empty">No wallets added yet.</td></tr>'}
+      </table>
+    </div>"""
+    return shell("Wallets", body, "wallets")
+
+
+@app.post("/admin/wallets/add")
+async def admin_add_wallet(
+    label: str = Form(...),
+    address: str = Form(...),
+    mnemonic: str = Form(...),
+    session: Optional[str] = Cookie(default=None),
+):
+    if not is_admin(session): return RedirectResponse("/admin/login", status_code=303)
+    if not address.startswith(("UQ", "EQ")) or len(mnemonic.split()) != 24:
+        return RedirectResponse("/admin/wallets?msg=Invalid+address+or+mnemonic", status_code=303)
+    db.add_wallet(label.strip(), address.strip(), mnemonic.strip())
+    return RedirectResponse("/admin/wallets", status_code=303)
+
+
+@app.post("/admin/wallets/{wallet_id}/toggle")
+async def admin_toggle_wallet(wallet_id: int, session: Optional[str] = Cookie(default=None)):
+    if not is_admin(session): return RedirectResponse("/admin/login", status_code=303)
+    w = db.get_wallet_by_id(wallet_id)
+    if w:
+        db.toggle_wallet(wallet_id, 0 if w["is_active"] else 1)
+    return RedirectResponse("/admin/wallets", status_code=303)
+
+
+@app.post("/admin/wallets/{wallet_id}/delete")
+async def admin_delete_wallet(wallet_id: int, session: Optional[str] = Cookie(default=None)):
+    if not is_admin(session): return RedirectResponse("/admin/login", status_code=303)
+    db.delete_wallet(wallet_id)
+    return RedirectResponse("/admin/wallets", status_code=303)
