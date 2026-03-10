@@ -144,86 +144,92 @@ async def help_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def deposit_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     db.upsert_user(update.effective_user.id, update.effective_user.username or update.effective_user.first_name)
 
-    buttons = []
-    for c in OXAPAY_CURRENCIES:
-        emoji, name = CURRENCY_INFO.get(c, ("💰", c))
-        buttons.append([InlineKeyboardButton(f"{emoji} {name} ({c})", callback_data=f"dep_{c}")])
-
     await update.message.reply_html(
-        f"{TON} <b>Deposit Crypto</b>\n"
+        f"{WALLET} <b>Deposit Funds</b>\n"
         f"<code>{SEP2}</code>\n\n"
-        f"Select your preferred currency:\n\n"
-        f"<i>Payments processed securely via OxaPay</i>",
-        reply_markup=InlineKeyboardMarkup(buttons),
-    )
-    return DEP_CURRENCY
-
-
-async def dep_currency(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    currency = query.data.replace("dep_", "")
-    ctx.user_data["dep_currency"] = currency
-    emoji, name = CURRENCY_INFO.get(currency, ("💰", currency))
-
-    await query.edit_message_text(
-        f"{emoji} <b>Deposit {name}</b>\n"
-        f"<code>{SEP2}</code>\n\n"
-        f"How much <b>{currency}</b> do you want to deposit?\n\n"
-        f"Reply with an amount (e.g. <code>10</code>):",
-        parse_mode="HTML",
+        f"How much <b>USD</b> do you want to add to your balance?\n\n"
+        f"Reply with an amount (e.g. <code>10</code>):\n\n"
+        f"<i>Minimum: <code>$1.00</code> — Payments via OxaPay</i>",
     )
     return DEP_AMOUNT
 
 
-async def dep_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    try:
-        amount = float(update.message.text.strip())
-        if amount <= 0:
-            raise ValueError
-    except ValueError:
-        await update.message.reply_html(f"{CROSS} Please enter a valid positive number:")
-        return DEP_AMOUNT
-
-    currency = ctx.user_data.get("dep_currency", "TON")
-    uid      = update.effective_user.id
+async def dep_currency(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """User picked a currency to pay with — create the invoice."""
+    query = update.callback_query
+    await query.answer()
+    currency = query.data.replace("dep_", "")
+    usd_amount = ctx.user_data.get("dep_usd_amount", 0)
+    uid        = query.from_user.id
     emoji, name = CURRENCY_INFO.get(currency, ("💰", currency))
 
-    wait_msg = await update.message.reply_html(f"{FAST} <b>Creating invoice...</b>")
+    await query.edit_message_text(
+        f"{FAST} <b>Creating invoice...</b>",
+        parse_mode="HTML",
+    )
 
     try:
         invoice = await create_invoice(
-            amount=amount,
-            currency=currency,
+            amount=usd_amount,
+            currency="USDT",        # OxaPay accepts USD value via USDT as base
             order_id=str(uid),
-            description=f"Tonvertise — {amount} {currency}",
+            description=f"Tonvertise — ${usd_amount} USD via {currency}",
             lifetime=60,
+            pay_currency=currency,  # user pays in their chosen coin
         )
     except Exception as e:
         logger.error(f"OxaPay error: {e}")
-        await wait_msg.edit_text(
+        await query.edit_message_text(
             f"{CROSS} Failed to create invoice:\n<code>{e}</code>",
             parse_mode="HTML",
         )
         return ConversationHandler.END
 
-    db.create_deposit(uid, currency, amount, invoice_id=str(invoice.get("track_id")))
+    db.create_deposit(uid, currency, usd_amount, invoice_id=str(invoice.get("track_id")))
     pay_link = invoice["payment_url"]
 
-    await wait_msg.edit_text(
+    await query.edit_message_text(
         f"{CHECK} <b>Invoice Created!</b>\n"
         f"<code>{SEP2}</code>\n\n"
-        f"{emoji} Amount:   <code>{amount} {currency}</code>\n"
-        f"⏱ Expires:  <code>60 minutes</code>\n"
+        f"💵 USD Value:  <code>${usd_amount}</code>\n"
+        f"{emoji} Pay with:  <code>{name} ({currency})</code>\n"
+        f"⏱ Expires:    <code>60 minutes</code>\n"
         f"🔒 Secured by OxaPay\n\n"
         f"👇 <b>Tap below to pay</b>",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton(f"💳 Pay {amount} {currency}", url=pay_link)
+            InlineKeyboardButton(f"💳 Pay ${usd_amount} in {currency}", url=pay_link)
         ]]),
         disable_web_page_preview=True,
     )
     return ConversationHandler.END
+
+
+async def dep_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    try:
+        usd_amount = float(update.message.text.strip())
+        if usd_amount < 1:
+            raise ValueError
+    except ValueError:
+        await update.message.reply_html(f"{CROSS} Please enter a valid amount (minimum <code>$1</code>):")
+        return DEP_AMOUNT
+
+    ctx.user_data["dep_usd_amount"] = usd_amount
+
+    # Show currency picker
+    buttons = []
+    for c in OXAPAY_CURRENCIES:
+        emoji, name = CURRENCY_INFO.get(c, ("💰", c))
+        buttons.append([InlineKeyboardButton(f"{emoji} Pay with {name} ({c})", callback_data=f"dep_{c}")])
+
+    await update.message.reply_html(
+        f"{WALLET} <b>Amount: <code>${usd_amount:.2f} USD</code></b>\n"
+        f"<code>{SEP2}</code>\n\n"
+        f"Now choose which crypto you want to pay with:\n\n"
+        f"<i>OxaPay will calculate the exact coin amount at current rates</i>",
+        reply_markup=InlineKeyboardMarkup(buttons),
+    )
+    return DEP_CURRENCY
 
 
 # ── /promo ────────────────────────────────────────────────────────────────────
