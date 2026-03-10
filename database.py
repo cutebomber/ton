@@ -245,7 +245,7 @@ def get_order_targets_all(order_id: int):
 def get_user_orders(telegram_id: int):
     conn = get_conn()
     rows = conn.execute(
-        "SELECT * FROM orders WHERE telegram_id=? ORDER BY created_at DESC LIMIT 10",
+        "SELECT * FROM orders WHERE telegram_id=? ORDER BY created_at DESC",
         (telegram_id,)
     ).fetchall()
     conn.close()
