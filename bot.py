@@ -637,6 +637,11 @@ def build_app():
         menu_button_handler,
     ))
 
+    # Debug — log every unhandled text message
+    async def debug_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        logger.info(f"[DEBUG] Unhandled message from {update.effective_user.id}: {update.message.text!r} | state: {ctx.user_data}")
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, debug_handler))
+
     return app
 
 
